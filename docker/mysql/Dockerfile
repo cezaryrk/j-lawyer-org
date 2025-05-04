@@ -1,34 +1,37 @@
-FROM ubuntu:latest
-MAINTAINER j-dimension "info@j-lawyer.org"
+# syntax=docker/dockerfile:1
+# check=skip=SecretsUsedInArgOrEnv
+FROM mysql:5.7
 
-RUN echo "deb http://cn.archive.ubuntu.com/ubuntu/ xenial main restricted universe multiverse" >> /etc/apt/sources.list
+LABEL org.opencontainers.image.authors="j-dimension info@j-lawyer.org"
 
-RUN echo "mysql-server mysql-server/root_password password root" | debconf-set-selections
-RUN echo "mysql-server mysql-server/root_password_again password root" | debconf-set-selections
+# set default access data
+ENV MYSQL_ROOT_PASSWORD="mysql"
+ENV MYSQL_USER="jlawyer"
+ENV MYSQL_PASSWORD="jlawyer"
 
-RUN apt-get update && \
-	apt-get -y install mysql-server-5.7 && \
-	mkdir -p /var/lib/mysql && \
-	mkdir -p /var/run/mysqld && \
-	mkdir -p /var/log/mysql && \
-	chown -R mysql:mysql /var/lib/mysql && \
-	chown -R mysql:mysql /var/run/mysqld && \
-	chown -R mysql:mysql /var/log/mysql
-
-
-# UTF-8 and bind-address
-RUN sed -i -e "$ a [client]\n\n[mysql]\n\n[mysqld]"  /etc/mysql/my.cnf && \
-	sed -i -e "s/\(\[client\]\)/\1\ndefault-character-set = utf8/g" /etc/mysql/my.cnf && \
-	sed -i -e "s/\(\[mysql\]\)/\1\ndefault-character-set = utf8/g" /etc/mysql/my.cnf && \
-	sed -i -e "s/\(\[mysqld\]\)/\1\ninit_connect='SET NAMES utf8'\ncharacter-set-server = utf8\ncollation-server=utf8_unicode_ci\nbind-address = 0.0.0.0/g" /etc/mysql/my.cnf
-
+# create folders, permissions and set parameter in /etc/my.cnf
+RUN mkdir -p /var/lib/mysql && \
+    mkdir -p /var/run/mysqld && \
+    mkdir -p /var/log/mysql && \
+    chown -R mysql:mysql /var/lib/mysql && \
+    chown -R mysql:mysql /var/run/mysqld && \
+    chown -R mysql:mysql /var/log/mysql && \
+    chmod -R 755 /var/lib/mysql && \
+    chmod -R 755 /var/run/mysqld && \
+    chmod -R 755 /var/log/mysql && \
+    sed -i -e "s/\(\[client\]\)/[mysql]\n\n\1/g" /etc/my.cnf && \
+    sed -i -e "s/\(\[client\]\)/\1\ndefault-character-set = utf8/g" /etc/my.cnf && \
+    sed -i -e "s/\(\[mysql\]\)/\1\ndefault-character-set = utf8/g" /etc/my.cnf && \
+    sed -i -e "s/\(\[mysqld\]\)/\1\ninit_connect='SET NAMES utf8'\ncharacter-set-server = utf8\ncollation-server=utf8_unicode_ci\nbind-address = 0.0.0.0/g" /etc/my.cnf &&\
+    sed -i -e "s/\(docker_init_database_dir() {\)/\1\n\tchmod -R 755 \/var\/lib\/mysql\n/g" /usr/local/bin/docker-entrypoint.sh
+    
 VOLUME /var/lib/mysql
 
-COPY ./startup.sh /root/startup.sh
-COPY ./create_database.sql /root/create_database.sql
-RUN chmod +x /root/startup.sh
+COPY ./create_database.sql /docker-entrypoint-initdb.d/10_create_database.sql
+COPY ./grant_permission.sh /docker-entrypoint-initdb.d/20_grant_permission.sh
+RUN chmod +x /docker-entrypoint-initdb.d/*.sh
 
-ENTRYPOINT ["/root/startup.sh"]
-
-EXPOSE 3306
-CMD ["/usr/bin/mysqld_safe"] 
+EXPOSE 3306/tcp
+EXPOSE 33060/tcp
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["mysqld"]

@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 set -e
 
 # MYSQL_ROOT_PWD=${MYSQL_ROOT_PWD:-"mysql"}
@@ -15,8 +15,9 @@ if [ ! -f /var/lib/mysql/ibdata1 ];then
         MYSQL_USER_PWD="jlawyer"
         MYSQL_USER_DB="jlawyerdb"
 	mysqld --initialize-insecure --user=mysql
-	service mysql start $ sleep 10
-
+#	service mysql start $ sleep 10
+	sleep 10
+	
 	echo "[i] Setting root new password."
 	mysql --user=root -e "UPDATE mysql.user set authentication_string=password('$MYSQL_ROOT_PWD') where user='root'; FLUSH PRIVILEGES;"
 	
